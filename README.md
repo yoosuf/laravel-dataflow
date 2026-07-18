@@ -225,6 +225,31 @@ Notes:
 - Measurements are from single-run comparisons on the same Dockerized workflow.
 - Absolute times can vary by host resources, but relative ordering was stable in this run.
 
+## Benchmark Results (Docker, 100k Users, Oracle + SQL Server)
+
+Additional cross-engine validation run executed in Docker with Oracle Free 23c and SQL Server 2022:
+
+- users: `100,000`
+- orders per user: `6`
+- items per order: `3`
+- total relational rows: `2,500,010` (including tenants)
+- result rows exported: `51,326`
+
+| Engine | Users | Orders | Order Items | Result Rows | Batch Size | Schema (s) | Seed (s) | Export (s) | Total (s) | Rows/s | Peak Mem (MB) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Oracle Free 23c | 100,000 | 600,000 | 1,800,000 | 51,326 | 10,000 | 0.2354 | 206.1710 | 2.7220 | 209.1284 | 18,856.14 | 2.00 |
+| SQL Server 2022 | 100,000 | 600,000 | 1,800,000 | 51,326 | 10,000 | 0.0748 | 335.9829 | 2.6955 | 338.7532 | 19,041.18 | 2.00 |
+
+Throughput ratios (`rows_per_second`):
+
+- SQL Server / Oracle: `1.01x`
+- Oracle / SQL Server: `0.99x`
+
+Notes:
+
+- This 100k table is a separate run profile from the 1M benchmark above.
+- Oracle setup used Docker Oracle Free with runtime-installed `oci8` + `pdo_oci` in the PHP benchmark container.
+
 ## Complex Query Support
 
 Use `DataFlow::forQuery($builder)` when your export/import source is a prebuilt Eloquent query with scopes, nested conditions, relation constraints, or subqueries.

@@ -19,7 +19,7 @@ $progressEvery = max(0, (int) ($_ENV['DATAFLOW_ENT_PROGRESS_EVERY'] ?? $_SERVER[
 $outputPath = (string) ($_ENV['DATAFLOW_ENT_OUTPUT'] ?? $_SERVER['DATAFLOW_ENT_OUTPUT'] ?? __DIR__.'/output/enterprise-join-export.csv');
 $mode = (string) ($_ENV['DATAFLOW_ENT_MODE'] ?? $_SERVER['DATAFLOW_ENT_MODE'] ?? 'sqlite');
 
-$supportedModes = ['sqlite', 'mysql', 'postgresql', 'pgsql', 'mariadb'];
+$supportedModes = ['sqlite', 'mysql', 'postgresql', 'pgsql', 'mariadb', 'mssql', 'sqlsrv', 'oracle', 'oci'];
 if (! in_array($mode, $supportedModes, true)) {
     throw new InvalidArgumentException(sprintf(
         'Unsupported DATAFLOW_ENT_MODE "%s". Supported modes: %s',
@@ -30,6 +30,14 @@ if (! in_array($mode, $supportedModes, true)) {
 
 if ($mode === 'pgsql') {
     $mode = 'postgresql';
+}
+
+if ($mode === 'sqlsrv') {
+    $mode = 'mssql';
+}
+
+if ($mode === 'oci') {
+    $mode = 'oracle';
 }
 
 $outputDir = dirname($outputPath);
@@ -45,6 +53,11 @@ if ($mode === 'sqlite') {
     $pdo->exec('PRAGMA synchronous = NORMAL');
 }
 
+if ($mode === 'oracle') {
+    $pdo->exec("ALTER SESSION SET NLS_DATE_FORMAT = 'YYYY-MM-DD HH24:MI:SS'");
+    $pdo->exec("ALTER SESSION SET NLS_TIMESTAMP_FORMAT = 'YYYY-MM-DD HH24:MI:SS'");
+}
+
 $schemaStart = microtime(true);
 createSchema($pdo, $mode);
 
@@ -57,13 +70,16 @@ $schemaElapsed = microtime(true) - $schemaStart;
 
 $seedStart = microtime(true);
 
-$userInsert = $pdo->prepare('INSERT INTO users (tenant_id, name, email, status, created_at) VALUES (?, ?, ?, ?, ?)');
-$orderInsert = $pdo->prepare('INSERT INTO orders (user_id, tenant_id, status, total_cents, created_at) VALUES (?, ?, ?, ?, ?)');
-$itemInsert = $pdo->prepare('INSERT INTO order_items (order_id, sku, quantity, unit_price_cents, created_at) VALUES (?, ?, ?, ?, ?)');
+$userInsert = $pdo->prepare('INSERT INTO users (id, tenant_id, name, email, status, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+$orderInsert = $pdo->prepare('INSERT INTO orders (id, user_id, tenant_id, status, total_cents, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+$itemInsert = $pdo->prepare('INSERT INTO order_items (id, order_id, sku, quantity, unit_price_cents, created_at) VALUES (?, ?, ?, ?, ?, ?)');
 
 $insertedUsers = 0;
 $insertedOrders = 0;
 $insertedItems = 0;
+$nextUserId = 1;
+$nextOrderId = 1;
+$nextItemId = 1;
 
 while ($insertedUsers < $users) {
     $pdo->beginTransaction();
@@ -76,15 +92,16 @@ while ($insertedUsers < $users) {
         $status = $globalIndex % 5 === 0 ? 'inactive' : 'active';
         $createdAt = date('Y-m-d H:i:s', time() - ($globalIndex % 200000));
 
+        $userId = $nextUserId++;
+
         $userInsert->execute([
+            $userId,
             $tenantId,
             'Enterprise User '.$globalIndex,
             'enterprise.user.'.$globalIndex.'@example.test',
             $status,
             $createdAt,
         ]);
-
-        $userId = (int) $pdo->lastInsertId();
 
         for ($orderNo = 1; $orderNo <= $ordersPerUser; $orderNo++) {
             $orderStatus = ($orderNo % 3 === 0) ? 'cancelled' : 'paid';
@@ -97,15 +114,16 @@ while ($insertedUsers < $users) {
                 $totalCents += $quantity * $unitPrice;
             }
 
+            $orderId = $nextOrderId++;
+
             $orderInsert->execute([
+                $orderId,
                 $userId,
                 $tenantId,
                 $orderStatus,
                 $totalCents,
                 $createdAt,
             ]);
-
-            $orderId = (int) $pdo->lastInsertId();
             $insertedOrders++;
 
             for ($itemNo = 1; $itemNo <= $itemsPerOrder; $itemNo++) {
@@ -113,6 +131,7 @@ while ($insertedUsers < $users) {
                 $unitPrice = 500 + (($globalIndex + $itemNo) % 4500);
 
                 $itemInsert->execute([
+                    $nextItemId++,
                     $orderId,
                     sprintf('SKU-%04d-%02d-%02d', $tenantId, $orderNo, $itemNo),
                     $quantity,
@@ -234,6 +253,27 @@ function connectPdo(string $mode, string $outputDir): PDO
         );
     }
 
+    if ($mode === 'mssql') {
+        $port = (int) ($_ENV['DATAFLOW_ENT_DB_PORT'] ?? $_SERVER['DATAFLOW_ENT_DB_PORT'] ?? 1433);
+
+        return new PDO(
+            sprintf('sqlsrv:Server=%s,%d;Database=%s;TrustServerCertificate=yes;Encrypt=no', $host, $port, $database),
+            $username,
+            $password,
+        );
+    }
+
+    if ($mode === 'oracle') {
+        $port = (int) ($_ENV['DATAFLOW_ENT_DB_PORT'] ?? $_SERVER['DATAFLOW_ENT_DB_PORT'] ?? 1521);
+        $service = (string) ($_ENV['DATAFLOW_ENT_DB_SERVICE'] ?? $_SERVER['DATAFLOW_ENT_DB_SERVICE'] ?? $database);
+
+        return new PDO(
+            sprintf('oci:dbname=//%s:%d/%s;charset=AL32UTF8', $host, $port, $service),
+            $username,
+            $password,
+        );
+    }
+
     $port = (int) ($_ENV['DATAFLOW_ENT_DB_PORT'] ?? $_SERVER['DATAFLOW_ENT_DB_PORT'] ?? 5432);
     $pgUser = (string) ($_ENV['DATAFLOW_ENT_DB_USERNAME'] ?? $_SERVER['DATAFLOW_ENT_DB_USERNAME'] ?? 'postgres');
 
@@ -253,7 +293,7 @@ function createSchema(PDO $pdo, string $mode): void
         )');
 
         $pdo->exec('CREATE TABLE users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY,
             tenant_id INTEGER NOT NULL,
             name TEXT NOT NULL,
             email TEXT NOT NULL,
@@ -262,7 +302,7 @@ function createSchema(PDO $pdo, string $mode): void
         )');
 
         $pdo->exec('CREATE TABLE orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY,
             user_id INTEGER NOT NULL,
             tenant_id INTEGER NOT NULL,
             status TEXT NOT NULL,
@@ -271,7 +311,7 @@ function createSchema(PDO $pdo, string $mode): void
         )');
 
         $pdo->exec('CREATE TABLE order_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY,
             order_id INTEGER NOT NULL,
             sku TEXT NOT NULL,
             quantity INTEGER NOT NULL,
@@ -290,7 +330,7 @@ function createSchema(PDO $pdo, string $mode): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
 
         $pdo->exec('CREATE TABLE users (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
             tenant_id BIGINT UNSIGNED NOT NULL,
             name VARCHAR(255) NOT NULL,
             email VARCHAR(255) NOT NULL,
@@ -299,7 +339,7 @@ function createSchema(PDO $pdo, string $mode): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
 
         $pdo->exec('CREATE TABLE orders (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
             user_id BIGINT UNSIGNED NOT NULL,
             tenant_id BIGINT UNSIGNED NOT NULL,
             status VARCHAR(32) NOT NULL,
@@ -308,13 +348,90 @@ function createSchema(PDO $pdo, string $mode): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
 
         $pdo->exec('CREATE TABLE order_items (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
             order_id BIGINT UNSIGNED NOT NULL,
             sku VARCHAR(64) NOT NULL,
             quantity INT NOT NULL,
             unit_price_cents INT NOT NULL,
             created_at DATETIME NOT NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
+    } elseif ($mode === 'mssql') {
+        $pdo->exec("IF OBJECT_ID('order_items', 'U') IS NOT NULL DROP TABLE order_items");
+        $pdo->exec("IF OBJECT_ID('orders', 'U') IS NOT NULL DROP TABLE orders");
+        $pdo->exec("IF OBJECT_ID('users', 'U') IS NOT NULL DROP TABLE users");
+        $pdo->exec("IF OBJECT_ID('tenants', 'U') IS NOT NULL DROP TABLE tenants");
+
+        $pdo->exec('CREATE TABLE tenants (
+            id BIGINT NOT NULL PRIMARY KEY,
+            name NVARCHAR(255) NOT NULL
+        )');
+
+        $pdo->exec('CREATE TABLE users (
+            id BIGINT NOT NULL PRIMARY KEY,
+            tenant_id BIGINT NOT NULL,
+            name NVARCHAR(255) NOT NULL,
+            email NVARCHAR(255) NOT NULL,
+            status NVARCHAR(32) NOT NULL,
+            created_at DATETIME2 NOT NULL
+        )');
+
+        $pdo->exec('CREATE TABLE orders (
+            id BIGINT NOT NULL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            tenant_id BIGINT NOT NULL,
+            status NVARCHAR(32) NOT NULL,
+            total_cents INT NOT NULL,
+            created_at DATETIME2 NOT NULL
+        )');
+
+        $pdo->exec('CREATE TABLE order_items (
+            id BIGINT NOT NULL PRIMARY KEY,
+            order_id BIGINT NOT NULL,
+            sku NVARCHAR(64) NOT NULL,
+            quantity INT NOT NULL,
+            unit_price_cents INT NOT NULL,
+            created_at DATETIME2 NOT NULL
+        )');
+    } elseif ($mode === 'oracle') {
+        foreach (['order_items', 'orders', 'users', 'tenants'] as $table) {
+            try {
+                $pdo->exec('DROP TABLE '.$table);
+            } catch (Throwable) {
+                // Table may not exist on first run.
+            }
+        }
+
+        $pdo->exec('CREATE TABLE tenants (
+            id NUMBER(19) PRIMARY KEY,
+            name VARCHAR2(255) NOT NULL
+        )');
+
+        $pdo->exec('CREATE TABLE users (
+            id NUMBER(19) PRIMARY KEY,
+            tenant_id NUMBER(19) NOT NULL,
+            name VARCHAR2(255) NOT NULL,
+            email VARCHAR2(255) NOT NULL,
+            status VARCHAR2(32) NOT NULL,
+            created_at TIMESTAMP NOT NULL
+        )');
+
+        $pdo->exec('CREATE TABLE orders (
+            id NUMBER(19) PRIMARY KEY,
+            user_id NUMBER(19) NOT NULL,
+            tenant_id NUMBER(19) NOT NULL,
+            status VARCHAR2(32) NOT NULL,
+            total_cents NUMBER(10) NOT NULL,
+            created_at TIMESTAMP NOT NULL
+        )');
+
+        $pdo->exec('CREATE TABLE order_items (
+            id NUMBER(19) PRIMARY KEY,
+            order_id NUMBER(19) NOT NULL,
+            sku VARCHAR2(64) NOT NULL,
+            quantity NUMBER(10) NOT NULL,
+            unit_price_cents NUMBER(10) NOT NULL,
+            created_at TIMESTAMP NOT NULL
+        )');
     } else {
         $pdo->exec('DROP TABLE IF EXISTS order_items');
         $pdo->exec('DROP TABLE IF EXISTS orders');
@@ -327,7 +444,7 @@ function createSchema(PDO $pdo, string $mode): void
         )');
 
         $pdo->exec('CREATE TABLE users (
-            id BIGSERIAL PRIMARY KEY,
+            id BIGINT PRIMARY KEY,
             tenant_id BIGINT NOT NULL,
             name TEXT NOT NULL,
             email TEXT NOT NULL,
@@ -336,7 +453,7 @@ function createSchema(PDO $pdo, string $mode): void
         )');
 
         $pdo->exec('CREATE TABLE orders (
-            id BIGSERIAL PRIMARY KEY,
+            id BIGINT PRIMARY KEY,
             user_id BIGINT NOT NULL,
             tenant_id BIGINT NOT NULL,
             status TEXT NOT NULL,
@@ -345,7 +462,7 @@ function createSchema(PDO $pdo, string $mode): void
         )');
 
         $pdo->exec('CREATE TABLE order_items (
-            id BIGSERIAL PRIMARY KEY,
+            id BIGINT PRIMARY KEY,
             order_id BIGINT NOT NULL,
             sku TEXT NOT NULL,
             quantity INT NOT NULL,
@@ -365,6 +482,7 @@ function createSchema(PDO $pdo, string $mode): void
  */
 function explainRows(PDO $pdo, string $mode, string $sql): array
 {
+    try {
     if ($mode === 'sqlite') {
         $rows = $pdo->query('EXPLAIN QUERY PLAN '.$sql)->fetchAll(PDO::FETCH_ASSOC);
 
@@ -392,6 +510,27 @@ function explainRows(PDO $pdo, string $mode, string $sql): array
         }, $rows));
     }
 
+    if ($mode === 'mssql') {
+        $rows = $pdo->query('SET SHOWPLAN_TEXT ON; '.$sql.'; SET SHOWPLAN_TEXT OFF;')->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_values(array_map(static function (array $row): string {
+            $value = reset($row);
+
+            return is_string($value) ? $value : json_encode($row, JSON_THROW_ON_ERROR);
+        }, $rows));
+    }
+
+    if ($mode === 'oracle') {
+        $pdo->exec('EXPLAIN PLAN FOR '.$sql);
+        $rows = $pdo->query('SELECT PLAN_TABLE_OUTPUT FROM TABLE(DBMS_XPLAN.DISPLAY)')->fetchAll(PDO::FETCH_ASSOC);
+
+        return array_values(array_map(static function (array $row): string {
+            $value = $row['PLAN_TABLE_OUTPUT'] ?? reset($row);
+
+            return (string) $value;
+        }, $rows));
+    }
+
     $rows = $pdo->query('EXPLAIN '.$sql)->fetchAll(PDO::FETCH_ASSOC);
 
     return array_values(array_map(static function (array $row): string {
@@ -399,4 +538,7 @@ function explainRows(PDO $pdo, string $mode, string $sql): array
 
         return (string) $value;
     }, $rows));
+    } catch (Throwable $exception) {
+        return ['query_plan_unavailable='.$exception->getMessage()];
+    }
 }
