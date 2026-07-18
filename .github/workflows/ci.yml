@@ -1,0 +1,106 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4']
+        laravel: ['^11.0', '^12.0']
+        database: ['sqlite', 'mysql', 'pgsql']
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: dataflow
+          MYSQL_USER: dataflow
+          MYSQL_PASSWORD: secret
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: dataflow
+          POSTGRES_USER: dataflow
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dataflow"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    name: PHP ${{ matrix.php }} | Laravel ${{ matrix.laravel }} | DB ${{ matrix.database }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          extensions: mbstring, pdo, pdo_mysql, pdo_pgsql, dom, fileinfo
+
+      - name: Install dependencies
+        run: |
+          composer require "illuminate/support:${{ matrix.laravel }}" "illuminate/contracts:${{ matrix.laravel }}" --no-interaction --no-update
+          composer update --prefer-dist --no-interaction --no-progress
+
+      - name: Lint
+        run: composer lint
+
+      - name: Static analysis
+        run: composer analyse
+
+      - name: Test (sqlite)
+        if: matrix.database == 'sqlite'
+        run: composer test
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+
+      - name: Test (mysql)
+        if: matrix.database == 'mysql'
+        run: composer test
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: dataflow
+          DB_USERNAME: dataflow
+          DB_PASSWORD: secret
+
+      - name: Test (pgsql)
+        if: matrix.database == 'pgsql'
+        run: composer test
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: dataflow
+          DB_USERNAME: dataflow
+          DB_PASSWORD: secret
+
+  sqlsrv-scaffold:
+    runs-on: ubuntu-latest
+    name: SQL Server Matrix Scaffold
+    steps:
+      - name: SQL Server matrix placeholder
+        run: |
+          echo "Phase 0 scaffold only. SQL Server CI lane is intentionally deferred to Phase 2 DB matrix hardening."

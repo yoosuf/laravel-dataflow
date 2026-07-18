@@ -1,0 +1,162 @@
+# yoosuf/laravel-dataflow
+
+Streaming-first data operations for Laravel: filtering, searching, sorting, importing, and exporting datasets from hundreds of rows to billions, with queue-first fault tolerance.
+
+## Status
+
+This repository is currently at **Phase 8 (Hardening + Release Readiness)**.
+
+Included in Phase 0:
+- Package manifest and Laravel auto-discovery service provider
+- Publishable package configuration
+- CI workflow scaffold
+- Quality tooling (Pint, PHPStan, Rector, Infection config)
+- Pest + Testbench bootstrap
+- Architecture decision record (ADR-001)
+- Detailed phase-by-phase implementation task plan
+
+Included in Phase 1:
+- Public API contracts for fluent usage and extension points
+- Readonly DTOs/value objects and enums for package-wide payloads
+- ADR-002 documenting contract boundaries and KISS/SOLID rationale
+- Unit tests for enum sets, DTO invariants, and contract availability
+
+Included in Phase 2:
+- Allowlist-driven filtering engine (column/json/relation/relation-count/scope)
+- Nested AND/OR filter groups and soft-delete mode integration
+- Query composer pipeline for composable query mutation
+- Feature tests validating allowlist safety and query behavior
+
+Included in Phase 3:
+- Pluggable database LIKE search driver with relation search support
+- Weighted column search ranking support
+- Allowlisted sorting engine with relation-subquery and custom strategy support
+- Query composer integration for search and sorting pipes
+- Feature tests for search and sorting behavior
+
+Included in Phase 4:
+- Streaming export engine with CSV, JSON, and NDJSON writers
+- Fluent API integration through `DataFlow::for(...)->export(...)->to(...)->sync()/queue()`
+- Queue job execution path for asynchronous exports
+- Exporter registry and configurable format-driver mapping
+- Feature tests for sync and queue export flows
+
+Included in Phase 5:
+- Distributed export coordinator with keyset chunk planning
+- Adaptive chunk sizing engine
+- Chunk and merge job pipeline
+- Cache-backed progress snapshot store
+- Feature/unit tests for coordinator and adaptive chunking behavior
+
+Included in Phase 6:
+- Remaining exporters (XLSX, PDF, XML, Parquet adapter)
+- Streaming import readers (CSV/XLSX/JSON/NDJSON)
+- Reusable serializable import maps and mapping preview API
+- Chunked insert/upsert import runtime with error report output
+- Strict Parquet writer contract (no fallback artifact mode)
+
+Included in Phase 7:
+- Import/export lifecycle events
+- Status API and mapping preview endpoints
+- Artisan generators for filters and exporters
+- Queued import lifecycle semantics with pending/running/completed/failed progress transitions
+
+Included in Phase 8:
+- Benchmark scaffold and performance tuning guidance
+- Mutation-testing workflow and policy
+- SemVer policy and release checklist docs
+
+Not included yet:
+- Advanced dashboard UI (optional)
+
+## Installation (Path Repository)
+
+Add to your root composer repositories:
+
+```json
+{
+  "type": "path",
+  "url": "packages/yoosuf/laravel-dataflow",
+  "options": { "symlink": true }
+}
+```
+
+Then require:
+
+```bash
+composer require yoosuf/laravel-dataflow:*
+```
+
+Publish config:
+
+```bash
+php artisan vendor:publish --tag=dataflow-config
+```
+
+## Configuration
+
+Default configuration is in `config/dataflow.php` after publishing.
+
+## Development
+
+```bash
+composer install
+composer lint
+composer analyse
+composer test
+```
+
+## Benchmark Results (Docker, 1M Users)
+
+Enterprise join export benchmark executed in Docker with the following shape:
+
+- users: `1,000,000`
+- orders per user: `6`
+- items per order: `3`
+- total relational rows: `25,000,010` (including tenants)
+- result rows exported: `517,926`
+
+| Engine | Users | Orders | Order Items | Result Rows | Batch Size | Schema (s) | Seed (s) | Export (s) | Total (s) | Rows/s | Peak Mem (MB) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| MySQL 8.4 | 1,000,000 | 6,000,000 | 18,000,000 | 517,926 | 50,000 | 0.5578 | 643.9637 | 70.5498 | 715.0712 | 7,341.29 | 45.91 |
+| PostgreSQL 16 | 1,000,000 | 6,000,000 | 18,000,000 | 517,926 | 50,000 | 0.0272 | 1,039.8392 | 24.6754 | 1,064.5419 | 20,989.56 | 2.00 |
+| MariaDB 11 | 1,000,000 | 6,000,000 | 18,000,000 | 517,926 | 50,000 | 16.0734 | 1,664.5361 | 162.0778 | 1,842.6873 | 3,195.54 | 45.91 |
+
+Throughput ratios (`rows_per_second`):
+
+- PostgreSQL / MySQL: `2.86x`
+- PostgreSQL / MariaDB: `6.57x`
+- MySQL / MariaDB: `2.30x`
+- MariaDB / MySQL: `0.44x`
+
+Notes:
+
+- Measurements are from single-run comparisons on the same Dockerized workflow.
+- Absolute times can vary by host resources, but relative ordering was stable in this run.
+
+## Complex Query Support
+
+Use `DataFlow::forQuery($builder)` when your export/import source is a prebuilt Eloquent query with scopes, nested conditions, relation constraints, or subqueries.
+
+```php
+use Yoosuf\LaravelDataFlow\DataFlow;
+use App\Models\User;
+
+$runId = DataFlow::forQuery(
+  User::query()->where('status', 'active')->whereHas('posts')
+)
+  ->export('csv')
+  ->to('exports', 'active-users.csv')
+  ->sync();
+```
+
+Builder-based query sources are supported in `sync()` mode.
+Queued `queue()` runs are supported via an internal serialized query specification that reconstructs the query in worker jobs.
+
+## Roadmap
+
+See `docs/PHASE_PLAN.md` for the phase-by-phase task breakdown.
+
+## License
+
+MIT
