@@ -1,6 +1,97 @@
 # yoosuf/laravel-dataflow
 
-Streaming-first data operations for Laravel: filtering, searching, sorting, importing, and exporting datasets from hundreds of rows to billions, with queue-first fault tolerance.
+Build production-grade data pipelines in Laravel without custom ETL glue.
+
+`laravel-dataflow` is a streaming-first package for filtering, searching, sorting, importing, and exporting large datasets with queue-ready execution and predictable memory use.
+
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/yoosuf/laravel-dataflow.svg?style=flat-square)](https://packagist.org/packages/yoosuf/laravel-dataflow)
+[![Total Downloads](https://img.shields.io/packagist/dt/yoosuf/laravel-dataflow.svg?style=flat-square)](https://packagist.org/packages/yoosuf/laravel-dataflow)
+[![Tests](https://img.shields.io/github/actions/workflow/status/yoosuf/laravel-dataflow/ci.yml?branch=main&label=tests&style=flat-square)](https://github.com/yoosuf/laravel-dataflow/actions)
+[![License](https://img.shields.io/packagist/l/yoosuf/laravel-dataflow.svg?style=flat-square)](https://packagist.org/packages/yoosuf/laravel-dataflow)
+
+## Why Laravel Teams Use It
+
+- Ship CSV/XLSX/JSON/NDJSON/PDF/Parquet flows from one fluent API.
+- Keep memory stable with stream-based processing and chunk coordination.
+- Run sync for fast tasks, queue for heavy jobs, with progress snapshots.
+- Keep query safety with allowlisted filters, search, and sorting.
+- Integrate with existing Eloquent builders and complex query constraints.
+
+## Quick Pitch
+
+If your app needs admin exports, BI feeds, audit extracts, or bulk imports, this package gives you a single Laravel-native pipeline instead of ad-hoc jobs and one-off scripts.
+
+## 30-Second Demo
+
+Add a short terminal-to-result GIF here showing:
+
+1. `DataFlow::for(User::class)->filter(...)->search(...)->export('csv')->to(...)->queue()`
+2. Queue worker processing chunks
+3. Downloadable output file
+
+Suggested asset path: `docs/assets/demo-export.gif`
+
+## Copy-Paste Recipes
+
+### 1) Admin Panel Export (Queued CSV)
+
+```php
+use Yoosuf\LaravelDataFlow\DataFlow;
+use App\Models\User;
+
+$runId = DataFlow::for(User::class)
+  ->allowedFilters(['status', 'country'])
+  ->allowedSearch(['name', 'email'])
+  ->allowedSorts(['created_at'])
+  ->filter(['status' => 'active'])
+  ->search('gmail.com')
+  ->sort('-created_at')
+  ->export('csv')
+  ->to('exports', 'active-users.csv')
+  ->queue();
+```
+
+### 2) BI Feed (Nightly NDJSON)
+
+```php
+use Yoosuf\LaravelDataFlow\DataFlow;
+use App\Models\Order;
+
+DataFlow::forQuery(
+  Order::query()->whereDate('created_at', now()->subDay()->toDateString())
+)
+  ->export('ndjson')
+  ->to('feeds', 'orders-nightly.ndjson')
+  ->sync();
+```
+
+### 3) Bulk Import (Chunked)
+
+```php
+use Yoosuf\LaravelDataFlow\DataFlow;
+use App\Models\Product;
+
+DataFlow::for(Product::class)
+  ->import('csv')
+  ->from('imports', 'products.csv')
+  ->map([
+    'sku' => 'sku',
+    'name' => 'name',
+    'price' => 'price_cents',
+  ])
+  ->upsertBy(['sku'])
+  ->queue();
+```
+
+## Copy For GitHub Repo Settings
+
+Use this as your repository description:
+
+> Streaming-first Laravel package for filtering, search, sorting, import, and export at any scale, with queue-native execution and low memory usage.
+
+Use these GitHub topics:
+
+`laravel`, `laravel-package`, `eloquent`, `data-pipeline`, `dataflow`, `import`, `export`, `csv`, `xlsx`, `ndjson`, `parquet`, `etl`, `query-builder`, `queue`, `large-datasets`
 
 ## Status
 

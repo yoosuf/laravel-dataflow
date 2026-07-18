@@ -1,18 +1,29 @@
 {
   "name": "yoosuf/laravel-dataflow",
-  "description": "Streaming-first Laravel data operations for filtering, searching, sorting, importing, and exporting datasets at any scale.",
+  "description": "Streaming-first Laravel data pipeline package for filter/search/sort/import/export workflows at any scale with queue-native execution.",
   "version": "0.9.1",
   "type": "library",
   "license": "MIT",
   "keywords": [
     "laravel",
+    "laravel-package",
     "dataflow",
+    "eloquent",
+    "query-builder",
     "filter",
     "search",
     "sort",
     "import",
     "export",
-    "streaming"
+    "streaming",
+    "csv",
+    "xlsx",
+    "ndjson",
+    "parquet",
+    "etl",
+    "reporting",
+    "large-datasets",
+    "queue"
   ],
   "authors": [
     {
