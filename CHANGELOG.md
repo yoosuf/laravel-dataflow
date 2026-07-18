@@ -6,6 +6,16 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-07-18
+
+### Added
+- Enterprise benchmark engine support for SQL Server (`mssql` / `sqlsrv`) and Oracle (`oracle` / `oci`) modes.
+- Docker benchmark result documentation for Oracle Free 23c and SQL Server 2022 (100k-user profile).
+
+### Changed
+- Enterprise benchmark now uses deterministic explicit primary keys across engines for consistent seed behavior.
+- Oracle benchmark sessions now set NLS date/timestamp formats for portable datetime insert/filter handling.
+
 ## [0.9.1] - 2026-07-18
 
 ### Added
