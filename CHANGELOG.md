@@ -6,6 +6,17 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-07-19
+
+### Added
+- Opt-in exporter fallback support via `dataflow.exports.fallback` configuration.
+- Fallback coverage tests for exporter resolution and invalid fallback configuration handling.
+
+### Changed
+- Exporter resolution now validates configured exporter classes and can route through configured fallback formats when enabled.
+- README benchmark results consolidated into a single multi-profile table.
+- Performance tuning docs updated with unified enterprise benchmark engine options and Docker commands for Oracle and SQL Server.
+
 ## [0.9.2] - 2026-07-18
 
 ### Added

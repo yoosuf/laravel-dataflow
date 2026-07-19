@@ -188,6 +188,31 @@ php artisan vendor:publish --tag=dataflow-config
 
 Default configuration is in `config/dataflow.php` after publishing.
 
+### Exporter Fallback Support (Opt-In)
+
+For production resilience, exporter resolution supports optional fallback formats when a requested exporter is not registered or unavailable.
+
+- `dataflow.exports.fallback.enabled` (default: `false`)
+- `dataflow.exports.fallback.default_format` (default: `csv`)
+- `dataflow.exports.fallback.format_map` (per-format overrides, e.g. `xlsx => csv`)
+
+Example:
+
+```php
+'exports' => [
+  'fallback' => [
+    'enabled' => true,
+    'default_format' => 'csv',
+    'format_map' => [
+      'xlsx' => 'csv',
+      'pdf' => 'csv',
+    ],
+  ],
+],
+```
+
+When disabled, the package remains strict and throws an exception for unsupported formats.
+
 ## Development
 
 ```bash
@@ -197,58 +222,34 @@ composer analyse
 composer test
 ```
 
-## Benchmark Results (Docker, 1M Users)
+## Benchmark Results (Docker)
 
-Enterprise join export benchmark executed in Docker with the following shape:
+All enterprise join export benchmark results are consolidated below.
 
-- users: `1,000,000`
+Common shape per profile:
+
 - orders per user: `6`
 - items per order: `3`
-- total relational rows: `25,000,010` (including tenants)
-- result rows exported: `517,926`
+- workload: `users -> orders -> order_items` join + aggregate export
 
-| Engine | Users | Orders | Order Items | Result Rows | Batch Size | Schema (s) | Seed (s) | Export (s) | Total (s) | Rows/s | Peak Mem (MB) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| MySQL 8.4 | 1,000,000 | 6,000,000 | 18,000,000 | 517,926 | 50,000 | 0.5578 | 643.9637 | 70.5498 | 715.0712 | 7,341.29 | 45.91 |
-| PostgreSQL 16 | 1,000,000 | 6,000,000 | 18,000,000 | 517,926 | 50,000 | 0.0272 | 1,039.8392 | 24.6754 | 1,064.5419 | 20,989.56 | 2.00 |
-| MariaDB 11 | 1,000,000 | 6,000,000 | 18,000,000 | 517,926 | 50,000 | 16.0734 | 1,664.5361 | 162.0778 | 1,842.6873 | 3,195.54 | 45.91 |
+| Profile | Engine | Users | Orders | Order Items | Result Rows | Batch Size | Schema (s) | Seed (s) | Export (s) | Total (s) | Rows/s | Peak Mem (MB) |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1M | MySQL 8.4 | 1,000,000 | 6,000,000 | 18,000,000 | 517,926 | 50,000 | 0.5578 | 643.9637 | 70.5498 | 715.0712 | 7,341.29 | 45.91 |
+| 1M | PostgreSQL 16 | 1,000,000 | 6,000,000 | 18,000,000 | 517,926 | 50,000 | 0.0272 | 1,039.8392 | 24.6754 | 1,064.5419 | 20,989.56 | 2.00 |
+| 1M | MariaDB 11 | 1,000,000 | 6,000,000 | 18,000,000 | 517,926 | 50,000 | 16.0734 | 1,664.5361 | 162.0778 | 1,842.6873 | 3,195.54 | 45.91 |
+| 100k | Oracle Free 23c | 100,000 | 600,000 | 1,800,000 | 51,326 | 10,000 | 0.2354 | 206.1710 | 2.7220 | 209.1284 | 18,856.14 | 2.00 |
+| 100k | SQL Server 2022 | 100,000 | 600,000 | 1,800,000 | 51,326 | 10,000 | 0.0748 | 335.9829 | 2.6955 | 338.7532 | 19,041.18 | 2.00 |
 
-Throughput ratios (`rows_per_second`):
+Throughput ratios (`rows_per_second`) by profile:
 
-- PostgreSQL / MySQL: `2.86x`
-- PostgreSQL / MariaDB: `6.57x`
-- MySQL / MariaDB: `2.30x`
-- MariaDB / MySQL: `0.44x`
+- 1M profile: PostgreSQL / MySQL `2.86x`, PostgreSQL / MariaDB `6.57x`, MySQL / MariaDB `2.30x`
+- 100k profile: SQL Server / Oracle `1.01x` (Oracle / SQL Server `0.99x`)
 
 Notes:
 
-- Measurements are from single-run comparisons on the same Dockerized workflow.
-- Absolute times can vary by host resources, but relative ordering was stable in this run.
-
-## Benchmark Results (Docker, 100k Users, Oracle + SQL Server)
-
-Additional cross-engine validation run executed in Docker with Oracle Free 23c and SQL Server 2022:
-
-- users: `100,000`
-- orders per user: `6`
-- items per order: `3`
-- total relational rows: `2,500,010` (including tenants)
-- result rows exported: `51,326`
-
-| Engine | Users | Orders | Order Items | Result Rows | Batch Size | Schema (s) | Seed (s) | Export (s) | Total (s) | Rows/s | Peak Mem (MB) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Oracle Free 23c | 100,000 | 600,000 | 1,800,000 | 51,326 | 10,000 | 0.2354 | 206.1710 | 2.7220 | 209.1284 | 18,856.14 | 2.00 |
-| SQL Server 2022 | 100,000 | 600,000 | 1,800,000 | 51,326 | 10,000 | 0.0748 | 335.9829 | 2.6955 | 338.7532 | 19,041.18 | 2.00 |
-
-Throughput ratios (`rows_per_second`):
-
-- SQL Server / Oracle: `1.01x`
-- Oracle / SQL Server: `0.99x`
-
-Notes:
-
-- This 100k table is a separate run profile from the 1M benchmark above.
-- Oracle setup used Docker Oracle Free with runtime-installed `oci8` + `pdo_oci` in the PHP benchmark container.
+- Measurements are single-run Docker comparisons.
+- Absolute timings vary by host resources; compare engines primarily within the same profile.
+- Oracle runs used Docker Oracle Free with runtime-installed `oci8` + `pdo_oci` in the PHP benchmark container.
 
 ## Complex Query Support
 

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Yoosuf\LaravelDataFlow\DataFlow;
+use Yoosuf\LaravelDataFlow\Exceptions\UnsupportedExportFormatException;
 use Yoosuf\LaravelDataFlow\Jobs\RunExportJob;
 use Yoosuf\LaravelDataFlow\Tests\Fixtures\Models\DataFlowUser;
 
@@ -225,4 +226,45 @@ it('fails fast when export memory usage crosses configured budget', function ():
             ->to('exports', 'memory-guard.csv')
             ->sync();
     })->toThrow(\RuntimeException::class, 'Export memory limit exceeded');
+});
+
+it('falls back to configured exporter when requested format exporter is unavailable', function (): void {
+    $exporters = (array) config('dataflow.exports.exporters', []);
+    unset($exporters['xlsx']);
+
+    config()->set('dataflow.exports.exporters', $exporters);
+    config()->set('dataflow.exports.fallback.enabled', true);
+    config()->set('dataflow.exports.fallback.default_format', 'csv');
+    config()->set('dataflow.exports.fallback.format_map', ['xlsx' => 'csv']);
+
+    DataFlow::for(DataFlowUser::class)
+        ->search('Ali')
+        ->export('xlsx')
+        ->to('exports', 'users-xlsx-fallback.csv')
+        ->sync();
+
+    Storage::disk('exports')->assertExists('users-xlsx-fallback.csv');
+
+    $content = Storage::disk('exports')->get('users-xlsx-fallback.csv');
+
+    expect($content)->toContain('Alice');
+    expect($content)->toContain('Alicia');
+    expect($content)->toContain('name');
+});
+
+it('throws a clear exception when fallback is enabled but fallback format is invalid', function (): void {
+    $exporters = (array) config('dataflow.exports.exporters', []);
+    unset($exporters['xlsx']);
+
+    config()->set('dataflow.exports.exporters', $exporters);
+    config()->set('dataflow.exports.fallback.enabled', true);
+    config()->set('dataflow.exports.fallback.default_format', 'invalid-format');
+
+    expect(function (): void {
+        DataFlow::for(DataFlowUser::class)
+            ->search('Ali')
+            ->export('xlsx')
+            ->to('exports', 'users-xlsx-invalid-fallback.csv')
+            ->sync();
+    })->toThrow(UnsupportedExportFormatException::class);
 });

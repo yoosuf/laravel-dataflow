@@ -68,6 +68,14 @@ return [
         'hydrate_models' => (bool) env('DATAFLOW_EXPORT_HYDRATE_MODELS', false),
         'memory_limit_bytes' => (int) env('DATAFLOW_EXPORT_MEMORY_LIMIT_BYTES', env('DATAFLOW_MEMORY_LIMIT_BYTES', 268435456)),
         'memory_check_interval' => (int) env('DATAFLOW_EXPORT_MEMORY_CHECK_INTERVAL', 500),
+        'fallback' => [
+            'enabled' => (bool) env('DATAFLOW_EXPORT_FALLBACK_ENABLED', false),
+            'default_format' => env('DATAFLOW_EXPORT_FALLBACK_DEFAULT_FORMAT', 'csv'),
+            'format_map' => [
+                // 'xlsx' => 'csv',
+                // 'pdf' => 'csv',
+            ],
+        ],
         'exporters' => [
             'csv' => \Yoosuf\LaravelDataFlow\Exporting\Exporters\CsvExporter::class,
             'json' => \Yoosuf\LaravelDataFlow\Exporting\Exporters\JsonExporter::class,

@@ -113,6 +113,43 @@ Run the join-heavy benchmark with indexed tables:
 DATAFLOW_ENT_USERS=250000 DATAFLOW_ENT_ORDERS_PER_USER=4 DATAFLOW_ENT_ITEMS_PER_ORDER=2 php benchmarks/enterprise_join_benchmark.php
 ```
 
+Optional engine mode and connection settings:
+
+- `DATAFLOW_ENT_MODE`: `sqlite`, `mysql`, `mariadb`, `postgresql` (or `pgsql`), `mssql` (or `sqlsrv`), `oracle` (or `oci`)
+- `DATAFLOW_ENT_DB_HOST`
+- `DATAFLOW_ENT_DB_PORT`
+- `DATAFLOW_ENT_DB_DATABASE`
+- `DATAFLOW_ENT_DB_USERNAME`
+- `DATAFLOW_ENT_DB_PASSWORD`
+- `DATAFLOW_ENT_DB_SERVICE` (Oracle service name; defaults to database value)
+- `DATAFLOW_ENT_OUTPUT`
+- `DATAFLOW_ENT_BATCH`
+- `DATAFLOW_ENT_PROGRESS_EVERY`
+
+MySQL example:
+
+```bash
+DATAFLOW_ENT_MODE=mysql DATAFLOW_ENT_DB_HOST=127.0.0.1 DATAFLOW_ENT_DB_PORT=3306 DATAFLOW_ENT_DB_DATABASE=laravel_dataflow_bench DATAFLOW_ENT_DB_USERNAME=root DATAFLOW_ENT_DB_PASSWORD=secret DATAFLOW_ENT_USERS=250000 php benchmarks/enterprise_join_benchmark.php
+```
+
+PostgreSQL example:
+
+```bash
+DATAFLOW_ENT_MODE=postgresql DATAFLOW_ENT_DB_HOST=127.0.0.1 DATAFLOW_ENT_DB_PORT=5432 DATAFLOW_ENT_DB_DATABASE=laravel_dataflow_bench DATAFLOW_ENT_DB_USERNAME=postgres DATAFLOW_ENT_DB_PASSWORD=secret DATAFLOW_ENT_USERS=250000 php benchmarks/enterprise_join_benchmark.php
+```
+
+SQL Server Docker example:
+
+```bash
+docker run --rm --platform linux/amd64 --network laradoc-ent-net -v "$PWD":/repo php:8.3-cli sh -lc "apt-get update >/dev/null && apt-get install -y curl gnupg2 ca-certificates unixodbc-dev apt-transport-https >/dev/null && curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/microsoft-prod.gpg && echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main' > /etc/apt/sources.list.d/microsoft-prod.list && apt-get update >/dev/null && ACCEPT_EULA=Y apt-get install -y msodbcsql18 >/dev/null && pecl install sqlsrv pdo_sqlsrv >/dev/null && docker-php-ext-enable sqlsrv pdo_sqlsrv && DATAFLOW_ENT_MODE=mssql DATAFLOW_ENT_DB_HOST=laradoc-ent-mssql DATAFLOW_ENT_DB_PORT=1433 DATAFLOW_ENT_DB_DATABASE=laravel_dataflow_bench_mssql DATAFLOW_ENT_DB_USERNAME=sa DATAFLOW_ENT_DB_PASSWORD='StrongPassw0rd!' DATAFLOW_ENT_USERS=100000 DATAFLOW_ENT_BATCH=10000 DATAFLOW_ENT_PROGRESS_EVERY=25000 php /repo/packages/yoosuf/laravel-dataflow/benchmarks/enterprise_join_benchmark.php"
+```
+
+Oracle Docker example:
+
+```bash
+docker run --rm --platform linux/amd64 --network laradoc-ent-net -v "$PWD":/repo php:8.3-cli sh -lc "apt-get update >/dev/null && apt-get install -y curl >/dev/null && curl -fsSL https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions -o /usr/local/bin/install-php-extensions && chmod +x /usr/local/bin/install-php-extensions && install-php-extensions oci8 pdo_oci >/dev/null && DATAFLOW_ENT_MODE=oracle DATAFLOW_ENT_DB_HOST=laradoc-ent-oracle DATAFLOW_ENT_DB_PORT=1521 DATAFLOW_ENT_DB_DATABASE=FREEPDB1 DATAFLOW_ENT_DB_SERVICE=FREEPDB1 DATAFLOW_ENT_DB_USERNAME=dataflow DATAFLOW_ENT_DB_PASSWORD=secret DATAFLOW_ENT_USERS=100000 DATAFLOW_ENT_BATCH=10000 DATAFLOW_ENT_PROGRESS_EVERY=25000 php /repo/packages/yoosuf/laravel-dataflow/benchmarks/enterprise_join_benchmark.php"
+```
+
 Filter tuning knobs:
 
 - `DATAFLOW_ENT_WINDOW_SECONDS`: lookback window for user recency filter (default: `31536000`)
@@ -126,3 +163,5 @@ What it simulates:
 - CSV export of aggregated result set
 
 Key output metrics include total seeded rows, result row count, join export throughput, memory usage, and SQL query plan details.
+
+For consolidated benchmark result tables across engines and profiles, see the Benchmark Results section in `README.md`.

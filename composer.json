@@ -1,7 +1,7 @@
 {
   "name": "yoosuf/laravel-dataflow",
   "description": "Streaming-first Laravel data pipeline package for filter/search/sort/import/export workflows at any scale with queue-native execution.",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "type": "library",
   "license": "MIT",
   "keywords": [

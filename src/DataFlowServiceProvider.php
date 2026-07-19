@@ -94,7 +94,18 @@ final class DataFlowServiceProvider extends ServiceProvider
             /** @var array<string, class-string<\Yoosuf\LaravelDataFlow\Contracts\ExporterContract>> $exporters */
             $exporters = (array) config('dataflow.exports.exporters', []);
 
-            return new ExporterFactory($exporters);
+            /** @var array<string, mixed> $fallback */
+            $fallback = (array) config('dataflow.exports.fallback', []);
+
+            /** @var array<string, string> $formatMap */
+            $formatMap = (array) ($fallback['format_map'] ?? []);
+
+            return new ExporterFactory(
+                exporters: $exporters,
+                fallbackEnabled: (bool) ($fallback['enabled'] ?? false),
+                fallbackFormatMap: $formatMap,
+                defaultFallbackFormat: isset($fallback['default_format']) ? (string) $fallback['default_format'] : null,
+            );
         });
 
         $this->app->singleton(ExportRunner::class, function (): ExportRunner {
