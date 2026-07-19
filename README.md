@@ -21,6 +21,15 @@ Build production-grade data pipelines in Laravel without custom ETL glue.
 
 If your app needs admin exports, BI feeds, audit extracts, or bulk imports, this package gives you a single Laravel-native pipeline instead of ad-hoc jobs and one-off scripts.
 
+## Open Source Project Docs
+
+- Contributing guide: CONTRIBUTING.md
+- Code of Conduct: CODE_OF_CONDUCT.md
+- Security policy: SECURITY.md
+- Support guide: SUPPORT.md
+- Changelog: CHANGELOG.md
+- Upgrade notes: UPGRADE.md
+
 ## 30-Second Demo
 
 Add a short terminal-to-result GIF here showing:
