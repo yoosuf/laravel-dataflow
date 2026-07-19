@@ -95,6 +95,64 @@ DataFlow::for(Product::class)
   ->queue();
 ```
 
+### Import Examples
+
+#### A) CSV Upsert By Natural Key
+
+```php
+use Yoosuf\LaravelDataFlow\DataFlow;
+use App\Models\Customer;
+
+DataFlow::for(Customer::class)
+  ->import('csv')
+  ->from('imports', 'customers.csv')
+  ->map([
+    'email' => 'email',
+    'name' => 'name',
+    'phone' => 'phone',
+    'country' => 'country_code',
+  ])
+  ->upsertBy(['email'])
+  ->queue();
+```
+
+#### B) JSON Import With Column Remap
+
+```php
+use Yoosuf\LaravelDataFlow\DataFlow;
+use App\Models\Product;
+
+DataFlow::for(Product::class)
+  ->import('json')
+  ->from('imports', 'catalog.json')
+  ->map([
+    'sku' => 'sku',
+    'title' => 'name',
+    'price' => 'price_cents',
+    'is_active' => 'status',
+  ])
+  ->upsertBy(['sku'])
+  ->queue();
+```
+
+#### C) NDJSON Sync Import For Small Batches
+
+```php
+use Yoosuf\LaravelDataFlow\DataFlow;
+use App\Models\Lead;
+
+DataFlow::for(Lead::class)
+  ->import('ndjson')
+  ->from('imports', 'leads.ndjson')
+  ->map([
+    'external_id' => 'external_id',
+    'email' => 'email',
+    'source' => 'source',
+  ])
+  ->upsertBy(['external_id'])
+  ->sync();
+```
+
 ## Copy For GitHub Repo Settings
 
 Use this as your repository description:
