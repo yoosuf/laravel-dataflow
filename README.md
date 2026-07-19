@@ -32,13 +32,16 @@ If your app needs admin exports, BI feeds, audit extracts, or bulk imports, this
 
 ## 30-Second Demo
 
-Add a short terminal-to-result GIF here showing:
+```mermaid
+flowchart LR
+  A[Developer runs queued export command in terminal] --> B[DataFlow for User with filter search and CSV export]
+  B --> C[Queue job dispatched]
+  C --> D[Queue worker picks up chunk jobs]
+  D --> E[Chunk processing and merge]
+  E --> F[CSV written to storage]
+  F --> G[Downloadable output file for user]
+```
 
-1. `DataFlow::for(User::class)->filter(...)->search(...)->export('csv')->to(...)->queue()`
-2. Queue worker processing chunks
-3. Downloadable output file
-
-Suggested asset path: `docs/assets/demo-export.gif`
 
 ## Copy-Paste Recipes
 
